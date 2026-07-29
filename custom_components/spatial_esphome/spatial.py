@@ -57,6 +57,15 @@ def _devices(hass: HomeAssistant) -> list[Any]:
 
 
 def _entities_of(hass: HomeAssistant, device_id: str) -> list[Any]:
+    """The board's own entities -- the ones ESPHome itself reports.
+
+    A device is not one integration's property. The router puts a
+    ``device_tracker`` on the same device, because it is the same MAC, and
+    that tracker keeps saying ``not_home`` long after the board is dead:
+    the router remembers the address, the board is gone. Counting it would
+    paint a board green because something else still has an opinion about
+    it, which is exactly the answer nobody asked for.
+    """
     try:
         registry = er.async_get(hass)
     except (AttributeError, KeyError):  # pragma: no cover
@@ -65,6 +74,7 @@ def _entities_of(hass: HomeAssistant, device_id: str) -> list[Any]:
         entry
         for entry in getattr(registry, "entities", {}).values()
         if getattr(entry, "device_id", None) == device_id
+        and getattr(entry, "platform", ESPHOME_DOMAIN) == ESPHOME_DOMAIN
     ]
 
 

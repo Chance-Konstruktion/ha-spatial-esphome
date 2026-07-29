@@ -66,10 +66,14 @@ class FakeDevice:
 
 
 class FakeEntity:
-    def __init__(self, entity_id, *, device_id=None, entity_category=None):
+    def __init__(self, entity_id, *, device_id=None, entity_category=None,
+                 platform="esphome"):
         self.entity_id = entity_id
         self.device_id = device_id
         self.entity_category = entity_category
+        # Which integration put this entity on the device. Not always the
+        # one that owns the box -- the router adds its own.
+        self.platform = platform
 
 
 class _Registry:
@@ -167,11 +171,13 @@ class FakeEntry:
             hook()
 
 
-def house(hass, *, entities, area_id="buero", device_id="b1", **device):
+def house(hass, *, entities, area_id="buero", device_id="b1", foreign=None,
+          **device):
     """One board with the given entities, wired into both registries.
 
     ``entities`` maps entity_id to state; a value of ``(state, category)``
-    marks the entity as diagnostic.
+    marks the entity as diagnostic. ``foreign`` maps entity_id to state for
+    entities another integration put on the same device.
     """
     board = FakeDevice(device_id, area_id=area_id, name="Bürosensor",
                        model="ESP32", sw_version="2024.6.0", **device)
@@ -181,6 +187,11 @@ def house(hass, *, entities, area_id="buero", device_id="b1", **device):
         state, category = value if isinstance(value, tuple) else (value, None)
         _ENTITIES.entities[entity_id] = FakeEntity(
             entity_id, device_id=device_id, entity_category=category
+        )
+        hass.states.set(entity_id, state)
+    for entity_id, state in (foreign or {}).items():
+        _ENTITIES.entities[entity_id] = FakeEntity(
+            entity_id, device_id=device_id, platform="device_tracker_source"
         )
         hass.states.set(entity_id, state)
     return board

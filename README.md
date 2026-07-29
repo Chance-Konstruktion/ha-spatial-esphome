@@ -75,6 +75,26 @@ hier lauschen ließe: was sich ändert, ist die Erreichbarkeit, und die
 der seit dem Start nichts gemeldet hat, während die Platine tadellos
 erreichbar ist. „Alle" würde funktionierende Boards rot färben.
 
+Gezählt werden dabei nur die Entitäten, die **ESPHome selbst** meldet. Ein
+Gerät gehört keiner Integration allein: der Router hängt einen
+`device_tracker` an dieselbe MAC, und der sagt noch `not_home`, wenn das
+Board längst tot ist — der Router erinnert sich an die Adresse, die
+Platine ist weg. Mitzuzählen hieße, ein totes Board grün zu malen, weil
+jemand anders noch eine Meinung dazu hat.
+
+### Was der Adapter (noch) nicht weiß
+
+- **Deep Sleep.** Ein Board mit `deep_sleep` ist die meiste Zeit
+  planmäßig weg. Der Adapter sieht das nicht — es steht in keiner
+  Registry — und malt es rot. Bis das gelöst ist: solche Boards besser
+  ausblenden.
+- **Entitäten in anderen Bereichen als ihr Board.** Home Assistant
+  erlaubt es, eine einzelne Entität einem anderen Bereich zuzuordnen als
+  dem Gerät. Ein Punkt pro Platine kann nur an einer Stelle stehen, und
+  das ist der Bereich des *Geräts*. Wer einen Bewegungsmelder bewusst in
+  einen anderen Raum gelegt hat, sieht ihn hier nicht dort — dafür ist die
+  generische Ebene des Hubs da, die jede Entität einzeln setzt.
+
 ### Die Verlinkung
 
 Jeder Knoten trägt eine Entität des Boards. Ohne sie hat der Popup des

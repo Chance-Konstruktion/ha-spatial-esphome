@@ -78,6 +78,37 @@ def test_a_board_with_no_entities_links_nowhere_rather_than_lying():
     assert "entity_id" not in node
 
 
+def test_a_router_that_remembers_the_mac_does_not_revive_a_dead_board():
+    """The router keeps saying `not_home` long after the board is gone --
+    that is the router having an opinion, not the board answering."""
+    nodes = _nodes(
+        _setup(
+            {"sensor.a": "unavailable", "sensor.b": "unavailable"},
+            foreign={"device_tracker.b1": "not_home"},
+        )
+    )
+
+    assert nodes[0]["state"] == "offline"
+
+
+def test_a_foreign_entity_is_not_counted_as_the_boards_own():
+    """"Wie viel hängt an dieser Box" means the box's own entities."""
+    nodes = _nodes(
+        _setup({"sensor.a": "21.5"}, foreign={"device_tracker.b1": "home"})
+    )
+
+    assert nodes[0]["metadata"]["entitaeten"] == 1
+
+
+def test_a_foreign_entity_never_becomes_the_link():
+    """A router's tracker opens the router's dialog, not the board's."""
+    nodes = _nodes(
+        _setup({"sensor.z": "21.5"}, foreign={"device_tracker.aaa": "home"})
+    )
+
+    assert nodes[0]["entity_id"] == "sensor.z"
+
+
 def test_the_board_stands_in_the_area_home_assistant_gave_it():
     nodes = _nodes(_setup({"sensor.a": "21.5"}, area_id="buero"))
 
