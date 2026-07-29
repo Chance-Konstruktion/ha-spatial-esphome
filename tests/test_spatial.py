@@ -78,6 +78,45 @@ def test_a_board_with_no_entities_links_nowhere_rather_than_lying():
     assert "entity_id" not in node
 
 
+def test_a_deep_sleep_board_is_asleep_and_not_broken():
+    """Being gone is its job. Red every night would say the opposite."""
+    nodes = _nodes(_setup({"sensor.a": "unavailable"}, deep_sleep=True))
+
+    assert nodes[0]["state"] == "asleep"
+    assert nodes[0]["icon"] == "mdi:sleep"
+
+
+def test_a_deep_sleep_board_that_is_awake_is_simply_online():
+    """`asleep` is what silence means here, not what the board always is."""
+    nodes = _nodes(_setup({"sensor.a": "12.4"}, deep_sleep=True))
+
+    assert nodes[0]["state"] == "online"
+
+
+def test_a_mains_fed_board_that_goes_quiet_still_says_offline():
+    """The distinction only exists because the two are different."""
+    nodes = _nodes(_setup({"sensor.a": "unavailable"}, deep_sleep=False))
+
+    assert nodes[0]["state"] == "offline"
+
+
+def test_the_popup_says_why_a_board_is_quiet():
+    awake = _nodes(_setup({"sensor.a": "12.4"}, deep_sleep=True))[0]
+
+    assert awake["metadata"]["schlafmodus"] == "ja"
+
+
+def test_a_board_whose_sleep_cannot_be_read_is_treated_as_never_sleeping():
+    """ESPHome's runtime data is somebody else's internals. A plan that
+    loses the layer after an HA update is worse than one wrong colour."""
+    hass = FakeHass()
+    house(hass, entities={"sensor.a": "unavailable"})
+    hass.config_entries.entries = {}  # the interface moved
+    async_setup_spatial(hass, FakeEntry())
+
+    assert _nodes(hass)[0]["state"] == "offline"
+
+
 def test_a_router_that_remembers_the_mac_does_not_revive_a_dead_board():
     """The router keeps saying `not_home` long after the board is gone --
     that is the router having an opinion, not the board answering."""

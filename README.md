@@ -68,7 +68,8 @@ hier lauschen ließe: was sich ändert, ist die Erreichbarkeit, und die
 | Lage | Zustand |
 | --- | --- |
 | irgendeine Entität des Boards antwortet | `online` |
-| alle sind `unavailable`/`unknown` | `offline` |
+| alle still, Board hat **Deep Sleep** | `asleep` |
+| alle still, Board hängt am Strom | `offline` |
 | das Board hat gar keine Entitäten | `unknown` |
 
 „Irgendeine" statt „alle" mit Absicht: ein Board darf einen Sensor haben,
@@ -82,12 +83,24 @@ Board längst tot ist — der Router erinnert sich an die Adresse, die
 Platine ist weg. Mitzuzählen hieße, ein totes Board grün zu malen, weil
 jemand anders noch eine Meinung dazu hat.
 
-### Was der Adapter (noch) nicht weiß
+### Deep Sleep
 
-- **Deep Sleep.** Ein Board mit `deep_sleep` ist die meiste Zeit
-  planmäßig weg. Der Adapter sieht das nicht — es steht in keiner
-  Registry — und malt es rot. Bis das gelöst ist: solche Boards besser
-  ausblenden.
+Ein Board mit `deep_sleep` wacht auf, meldet und ist wieder weg.
+Unerreichbar zu sein ist seine Aufgabe, nicht sein Fehler — deshalb
+bekommt es `asleep` statt `offline`, einen eigenen Zustand und kein
+weicheres Rot. So kann der Grundriss „hier ist nichts kaputt" sagen, ohne
+zu behaupten, das Board sei wach.
+
+Wo das herkommt: Home Assistant hat keinen Platz dafür. Die
+Geräte-Registry kennt die Box, nicht ihr Verhalten. Der einzige Ort ist
+ESPHomes eigene Laufzeitdaten — fremde Interna, kein zugesichertes
+Interface. Jeder Schritt dorthin ist defensiv, und ein Board, dessen
+Antwort sich nicht lesen lässt, gilt als eins, das nie schläft: eine
+falsche Farbe an einem Board ist besser als eine verschwundene Ebene nach
+dem nächsten HA-Update.
+
+### Was der Adapter nicht kann
+
 - **Entitäten in anderen Bereichen als ihr Board.** Home Assistant
   erlaubt es, eine einzelne Entität einem anderen Bereich zuzuordnen als
   dem Gerät. Ein Punkt pro Platine kann nur an einer Stelle stehen, und

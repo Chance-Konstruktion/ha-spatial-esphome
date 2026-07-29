@@ -78,6 +78,36 @@ def _entities_of(hass: HomeAssistant, device_id: str) -> list[Any]:
     ]
 
 
+def _sleeps(hass: HomeAssistant, device: Any) -> bool:
+    """Whether this board is *meant* to be gone most of the time.
+
+    A ``deep_sleep`` board wakes, reports, and goes away again -- being
+    unreachable is its job, not its failure, and painting it red every
+    night is the same mistake as painting a sleeping battery sensor red.
+
+    Home Assistant has nowhere to put this: the device registry knows the
+    box, not how it behaves. The only place it exists is ESPHome's own
+    runtime data, which is another integration's internals and no promised
+    interface -- so every step of the way down is defensive, and a board
+    whose answer cannot be read is simply treated as one that never
+    sleeps. Wrong colour on one board beats no layer at all.
+    """
+    try:
+        for entry_id in getattr(device, "config_entries", ()) or ():
+            entry = hass.config_entries.async_get_entry(entry_id)
+            if entry is None or getattr(entry, "domain", "") != ESPHOME_DOMAIN:
+                continue
+            runtime = getattr(entry, "runtime_data", None)
+            if runtime is None:  # pragma: no cover - older Home Assistant
+                runtime = (hass.data.get(ESPHOME_DOMAIN) or {}).get(entry_id)
+            info = getattr(runtime, "device_info", None)
+            if info is not None:
+                return bool(getattr(info, "has_deep_sleep", False))
+    except (AttributeError, KeyError, TypeError):  # pragma: no cover
+        return False
+    return False
+
+
 def _representative(entries: list[Any]) -> str | None:
     """One entity to stand for the whole board in the hub's popup.
 
@@ -98,13 +128,19 @@ def _representative(entries: list[Any]) -> str | None:
     )[0].entity_id
 
 
-def _reachable(hass: HomeAssistant, entries: list[Any]) -> str:
+def _reachable(hass: HomeAssistant, entries: list[Any], sleeps: bool) -> str:
     """A board is up if any of its entities is answering.
 
     "Any" rather than "all" on purpose: a board can have a sensor that is
     legitimately unknown -- one that has not reported since boot -- while
     the board itself is perfectly reachable. Requiring all of them would
     paint working boards red.
+
+    Silence means two different things depending on the board. A mains-fed
+    one that stops answering has a problem; a deep-sleep one that stops
+    answering is doing what it was built to do, and gets `asleep` -- its
+    own state rather than a softer shade of broken, so a plan can show
+    "nothing is wrong here" without pretending the board is awake.
     """
     if not entries:
         return "unknown"
@@ -112,7 +148,15 @@ def _reachable(hass: HomeAssistant, entries: list[Any]) -> str:
         state = hass.states.get(entry.entity_id)
         if state and str(state.state).lower() not in _UNREACHABLE:
             return "online"
-    return "offline"
+    return "asleep" if sleeps else "offline"
+
+
+# What the dot looks like in each of the three states a board can be in.
+_ICONS = {
+    "online": "mdi:chip",
+    "asleep": "mdi:sleep",
+    "offline": "mdi:chip-off",
+}
 
 
 def async_setup_spatial(hass: HomeAssistant, entry: Any) -> None:
@@ -120,7 +164,8 @@ def async_setup_spatial(hass: HomeAssistant, entry: Any) -> None:
         nodes = []
         for device in _devices(hass):
             entries = _entities_of(hass, device.id)
-            state = _reachable(hass, entries)
+            sleeps = _sleeps(hass, device)
+            state = _reachable(hass, entries, sleeps)
             nodes.append(
                 node(
                     f"board-{device.id}",
@@ -132,9 +177,12 @@ def async_setup_spatial(hass: HomeAssistant, entry: Any) -> None:
                     # the device behind the entity on its own.
                     entity_id=_representative(entries),
                     state=state,
-                    icon="mdi:chip" if state == "online" else "mdi:chip-off",
+                    icon=_ICONS.get(state, "mdi:chip-off"),
                     modell=getattr(device, "model", "") or "",
                     firmware=getattr(device, "sw_version", "") or "",
+                    # Says why a board is quiet, so "offline" and "schläft
+                    # gerade" are not the same shrug in the popup.
+                    schlafmodus="ja" if sleeps else "nein",
                     # The number a wall-mounted board's owner actually wants:
                     # how much is hanging off this one box.
                     entitaeten=len(entries),

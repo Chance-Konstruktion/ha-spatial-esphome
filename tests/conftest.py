@@ -55,9 +55,10 @@ _module("homeassistant.helpers")
 class FakeDevice:
     def __init__(self, device_id, *, identifiers=(("esphome", "aabbcc"),),
                  name="", name_by_user=None, area_id=None, model="",
-                 sw_version=""):
+                 sw_version="", config_entries=("esphome-entry",)):
         self.id = device_id
         self.identifiers = set(identifiers)
+        self.config_entries = set(config_entries)
         self.name = name
         self.name_by_user = name_by_user
         self.area_id = area_id
@@ -142,12 +143,41 @@ class FakeStates:
         return self._states.get(entity_id)
 
 
+class FakeDeviceInfo:
+    """ESPHome's own record of a board. Only the one flag is read."""
+
+    def __init__(self, has_deep_sleep=False):
+        self.has_deep_sleep = has_deep_sleep
+
+
+class FakeRuntime:
+    def __init__(self, device_info):
+        self.device_info = device_info
+
+
+class FakeEsphomeEntry:
+    domain = "esphome"
+
+    def __init__(self, entry_id="esphome-entry", has_deep_sleep=False):
+        self.entry_id = entry_id
+        self.runtime_data = FakeRuntime(FakeDeviceInfo(has_deep_sleep))
+
+
+class FakeConfigEntries:
+    def __init__(self):
+        self.entries = {}
+
+    def async_get_entry(self, entry_id):
+        return self.entries.get(entry_id)
+
+
 class FakeHass:
     """The ``data`` dict and the states -- the whole surface used here."""
 
     def __init__(self):
         self.data = {}
         self.states = FakeStates()
+        self.config_entries = FakeConfigEntries()
 
     @property
     def registrations(self):
@@ -172,7 +202,7 @@ class FakeEntry:
 
 
 def house(hass, *, entities, area_id="buero", device_id="b1", foreign=None,
-          **device):
+          deep_sleep=False, **device):
     """One board with the given entities, wired into both registries.
 
     ``entities`` maps entity_id to state; a value of ``(state, category)``
@@ -183,6 +213,9 @@ def house(hass, *, entities, area_id="buero", device_id="b1", foreign=None,
                        model="ESP32", sw_version="2024.6.0", **device)
     _DEVICES.devices = {device_id: board}
     _ENTITIES.entities = {}
+    hass.config_entries.entries = {
+        "esphome-entry": FakeEsphomeEntry(has_deep_sleep=deep_sleep)
+    }
     for entity_id, value in entities.items():
         state, category = value if isinstance(value, tuple) else (value, None)
         _ENTITIES.entities[entity_id] = FakeEntity(
