@@ -56,19 +56,39 @@ def _devices(hass: HomeAssistant) -> list[Any]:
     ]
 
 
-def _entities_of(hass: HomeAssistant, device_id: str) -> list[str]:
+def _entities_of(hass: HomeAssistant, device_id: str) -> list[Any]:
     try:
         registry = er.async_get(hass)
     except (AttributeError, KeyError):  # pragma: no cover
         return []
     return [
-        entry.entity_id
+        entry
         for entry in getattr(registry, "entities", {}).values()
         if getattr(entry, "device_id", None) == device_id
     ]
 
 
-def _reachable(hass: HomeAssistant, entity_ids: list[str]) -> str:
+def _representative(entries: list[Any]) -> str | None:
+    """One entity to stand for the whole board in the hub's popup.
+
+    Without one the popup has nothing to link to and reads as an empty
+    card: no more-info dialog, no device page, no settings. Any entity of
+    the board opens the same dialog, so the only thing that matters is
+    picking a useful one -- diagnostics sort last, because "Firmware" is a
+    poor answer to "show me this board".
+    """
+    if not entries:
+        return None
+    return sorted(
+        entries,
+        key=lambda entry: (
+            getattr(entry, "entity_category", None) is not None,
+            entry.entity_id,
+        ),
+    )[0].entity_id
+
+
+def _reachable(hass: HomeAssistant, entries: list[Any]) -> str:
     """A board is up if any of its entities is answering.
 
     "Any" rather than "all" on purpose: a board can have a sensor that is
@@ -76,10 +96,10 @@ def _reachable(hass: HomeAssistant, entity_ids: list[str]) -> str:
     the board itself is perfectly reachable. Requiring all of them would
     paint working boards red.
     """
-    if not entity_ids:
+    if not entries:
         return "unknown"
-    for entity_id in entity_ids:
-        state = hass.states.get(entity_id)
+    for entry in entries:
+        state = hass.states.get(entry.entity_id)
         if state and str(state.state).lower() not in _UNREACHABLE:
             return "online"
     return "offline"
@@ -89,8 +109,8 @@ def async_setup_spatial(hass: HomeAssistant, entry: Any) -> None:
     def data() -> dict[str, list]:
         nodes = []
         for device in _devices(hass):
-            entity_ids = _entities_of(hass, device.id)
-            state = _reachable(hass, entity_ids)
+            entries = _entities_of(hass, device.id)
+            state = _reachable(hass, entries)
             nodes.append(
                 node(
                     f"board-{device.id}",
@@ -98,13 +118,16 @@ def async_setup_spatial(hass: HomeAssistant, entry: Any) -> None:
                     or getattr(device, "name", "")
                     or "ESPHome",
                     area_id=getattr(device, "area_id", None),
+                    # The door into Home Assistant itself. The hub fills in
+                    # the device behind the entity on its own.
+                    entity_id=_representative(entries),
                     state=state,
                     icon="mdi:chip" if state == "online" else "mdi:chip-off",
                     modell=getattr(device, "model", "") or "",
                     firmware=getattr(device, "sw_version", "") or "",
                     # The number a wall-mounted board's owner actually wants:
                     # how much is hanging off this one box.
-                    entitaeten=len(entity_ids),
+                    entitaeten=len(entries),
                 )
             )
         return {"nodes": nodes}
@@ -115,7 +138,7 @@ def async_setup_spatial(hass: HomeAssistant, entry: Any) -> None:
         name="ESPHome",
         icon="mdi:chip",
         data=data,
-        version="0.1.0",
+        version="260729",
     )
 
     entry.async_on_unload(
