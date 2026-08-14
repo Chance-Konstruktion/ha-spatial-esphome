@@ -199,33 +199,49 @@ async def test_via_device_haengt_an_identifiers_nicht_an_connections(hass):
 async def test_untergeraete_werden_eingeklappt(hass, eintrag):
     """Ein Board, das sich als mehrere Geraete meldet, bleibt ein Punkt.
 
-    Verkettet wird ueber ``identifiers``, weil das der einzige Weg ist,
-    auf dem Home Assistant ``via_device`` aufloest -- siehe den Test
-    darueber. Der Adapter selbst liest nur das Ergebnis,
-    ``via_device_id``, und dem ist gleich, woraus es entstanden ist.
+    Aufgebaut wie ESPHome es wirklich tut, und das ist ein dritter Weg
+    neben den beiden aus dem Test darueber:
+
+    * Das **Board** bekommt nur ``connections`` mit seiner MAC, keinen
+      Identifier.
+    * Das **Untergeraet** bekommt einen eigenen Identifier aus MAC und
+      Geraete-Nummer.
+    * Die Verkettung entsteht **nicht** ueber ``via_device``, sondern
+      danach von Hand mit ``async_update_device(..., via_device_id=...)``.
+
+    Damit umgeht ESPHome die Identifier-Aufloesung vollstaendig -- und
+    genau deshalb funktioniert die Kette, obwohl das Board keinen
+    Identifier hat, auf den ``via_device`` zeigen koennte. Der frueher
+    hier gebaute Aufbau (Board *mit* Identifier) hat den Adapter richtig
+    geprueft, aber an einem Haus, das es nicht gibt.
+
+    Nachzulesen in ``homeassistant/components/esphome/manager.py``.
     """
     esphome = _esphome_eintrag(hass)
     registry = dr.async_get(hass)
+    mac = "aa:bb:cc:dd:ee:01"
+
     board = registry.async_get_or_create(
         config_entry_id=esphome.entry_id,
-        identifiers={("esphome", "buero")},
-        connections={(dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:01")},
+        connections={(dr.CONNECTION_NETWORK_MAC, mac)},
         name="Bürosensor",
         model="ESP32",
         sw_version="2024.6.0",
+    )
+    assert not board.identifiers, (
+        "ESPHome vergibt fuer das Board keinen Identifier -- steht diese "
+        "Annahme eines Tages nicht mehr, gehoert der Docstring von "
+        "_boards() korrigiert"
     )
     _entitaet(hass, board, "buero_temp", "21.5")
 
     kind = registry.async_get_or_create(
         config_entry_id=esphome.entry_id,
-        identifiers={("esphome", "buero-relais")},
+        identifiers={("esphome", f"{mac}_relais")},
         name="Bürosensor Relais",
-        via_device=("esphome", "buero"),
     )
-    assert kind.via_device_id == board.id, (
-        "Home Assistant hat via_device nicht aufgeloest -- ohne das ist "
-        "der Test wertlos"
-    )
+    kind = registry.async_update_device(kind.id, via_device_id=board.id)
+    assert kind.via_device_id == board.id
     _entitaet(hass, kind, "buero_relais", "on", eindeutig="esphome-relais")
 
     async_setup_spatial(hass, eintrag)
@@ -316,6 +332,13 @@ async def test_knoten_ids_bleiben_ueber_neustarts_gleich(hass, eintrag):
 
 
 async def test_ohne_esphome_im_haus_bleibt_die_ebene_leer(hass, eintrag):
-    """Kein ESPHome installiert heisst keine Knoten, keine Ausnahme."""
+    """Kein ESPHome installiert heisst keine Knoten, keine Ausnahme.
+
+    Die leere Liste ist hier ausdruecklich das richtige Ergebnis und
+    nicht der Ausfall, gegen den ``_sleeps()`` sich absichert. Die
+    Begruendung steht bei ``_boards()``: einen Rueckfall gaebe es nur
+    ueber ``identifiers``, und der findet bauartbedingt null Boards --
+    er wuerde eine ehrliche leere Liste gegen eine stille tauschen.
+    """
     async_setup_spatial(hass, eintrag)
     assert _knoten(hass) == []

@@ -56,12 +56,31 @@ def _boards(hass: HomeAssistant) -> list[tuple[Any, list[Any]]]:
     point at their board with ``via_device_id``. They are folded into it
     rather than drawn: this layer exists to be *one dot per board*, and a
     board that splits itself into six is still one thing on the wall.
+
+    That fold does run in the field, which is not obvious given the
+    sentence above: Home Assistant resolves ``via_device`` against
+    ``identifiers`` only, and a board has none. ESPHome sidesteps the
+    lookup entirely -- it creates the sub-device, then sets the link by
+    hand with ``async_update_device(sub.id, via_device_id=board.id)``.
+    The chain therefore exists without the board ever needing an
+    identifier. See ``esphome/manager.py``; the test
+    ``test_untergeraete_werden_eingeklappt`` builds it that way.
     """
     try:
         registry = dr.async_get(hass)
     except (AttributeError, KeyError):  # pragma: no cover
         return []
 
+    # An empty result is an answer, not a failure, and is deliberately
+    # not guarded against.
+    #
+    # Losing every board at once is worse than colouring one wrongly --
+    # that is the argument ``_sleeps()`` makes one level down, and it
+    # would apply here too if there were anything to fall back on. There
+    # is not: searching by ``identifiers`` finds zero boards by design,
+    # so a fallback would only trade an honest empty list for a silently
+    # empty one. If ESPHome has no config entries, the house has no
+    # ESPHome boards, and drawing none of them is correct.
     devices: dict[str, Any] = {}
     for entry in hass.config_entries.async_entries(ESPHOME_DOMAIN):
         for device in dr.async_entries_for_config_entry(registry, entry.entry_id):
