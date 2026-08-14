@@ -108,13 +108,22 @@ def test_the_popup_says_why_a_board_is_quiet():
 
 def test_a_board_whose_sleep_cannot_be_read_is_treated_as_never_sleeping():
     """ESPHome's runtime data is somebody else's internals. A plan that
-    loses the layer after an HA update is worse than one wrong colour."""
+    loses the layer after an HA update is worse than one wrong colour.
+
+    Der Ausfall wird hier am ``runtime_data`` nachgestellt und nicht mehr
+    am ganzen Config Entry: Seit die Boards ueber die Config Entries
+    gefunden werden, wuerde ein leeres Verzeichnis nicht das Innenleben
+    abschalten, sondern das Layer. Fremdes Terrain ist das, was *im*
+    Eintrag steht -- der Eintrag selbst ist oeffentlich und bleibt.
+    """
     hass = FakeHass()
     house(hass, entities={"sensor.a": "unavailable"})
-    hass.config_entries.entries = {}  # the interface moved
+    hass.config_entries.entries["esphome-entry"].runtime_data = None
     async_setup_spatial(hass, FakeEntry())
 
-    assert _nodes(hass)[0]["state"] == "offline"
+    knoten = _nodes(hass)[0]
+    assert knoten["state"] == "offline"
+    assert knoten["metadata"]["schlafmodus"] == "nein"
 
 
 def test_a_router_that_remembers_the_mac_does_not_revive_a_dead_board():
