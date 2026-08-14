@@ -149,23 +149,78 @@ async def test_boards_werden_ueber_die_config_entries_gefunden(hass, eintrag):
     assert len(_knoten(hass)) == 1
 
 
+async def test_via_device_haengt_an_identifiers_nicht_an_connections(hass):
+    """Woran die Verkettung von Geraeten wirklich haengt.
+
+    Home Assistant loest ``via_device`` ausschliesslich gegen
+    ``identifiers`` auf. Zeigt es auf eine ``connection`` -- eine MAC etwa
+    --, bleibt ``via_device_id`` still auf ``None``, und Home Assistant
+    schreibt eine Warnung, die ab 2025.12 ein Fehler wird.
+
+    Das steht hier als eigener Test, weil es sich nicht ableiten laesst
+    und weil eine Attrappe genau das aufloest, was man ihr beibringt. Wer
+    spaeter Untergeraete verkettet, soll das hier finden, bevor er einen
+    Nachmittag sucht.
+    """
+    esphome = _esphome_eintrag(hass)
+    registry = dr.async_get(hass)
+
+    ueber_mac = registry.async_get_or_create(
+        config_entry_id=esphome.entry_id,
+        connections={(dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:01")},
+        name="Board mit MAC",
+    )
+    kind_per_mac = registry.async_get_or_create(
+        config_entry_id=esphome.entry_id,
+        connections={(dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:02")},
+        name="Kind ueber MAC",
+        via_device=(dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:01"),
+    )
+    assert kind_per_mac.via_device_id is None, (
+        "Wenn Home Assistant das eines Tages doch aufloest, gehoert der "
+        "Adapter darauf angepasst -- und dieser Test gestrichen"
+    )
+    assert ueber_mac.id != kind_per_mac.via_device_id
+
+    ueber_id = registry.async_get_or_create(
+        config_entry_id=esphome.entry_id,
+        identifiers={("esphome", "board-1")},
+        name="Board mit Identifier",
+    )
+    kind_per_id = registry.async_get_or_create(
+        config_entry_id=esphome.entry_id,
+        identifiers={("esphome", "board-1-relais")},
+        name="Kind ueber Identifier",
+        via_device=("esphome", "board-1"),
+    )
+    assert kind_per_id.via_device_id == ueber_id.id
+
+
 async def test_untergeraete_werden_eingeklappt(hass, eintrag):
     """Ein Board, das sich als mehrere Geraete meldet, bleibt ein Punkt.
 
-    ``via_device`` ist der Weg, auf dem Home Assistant diese Beziehung
-    fuehrt. Ob das Untergeraet danach wirklich ein ``via_device_id``
-    traegt, entscheidet die Registry -- nicht der Adapter.
+    Verkettet wird ueber ``identifiers``, weil das der einzige Weg ist,
+    auf dem Home Assistant ``via_device`` aufloest -- siehe den Test
+    darueber. Der Adapter selbst liest nur das Ergebnis,
+    ``via_device_id``, und dem ist gleich, woraus es entstanden ist.
     """
     esphome = _esphome_eintrag(hass)
-    board = _board(hass, esphome)
+    registry = dr.async_get(hass)
+    board = registry.async_get_or_create(
+        config_entry_id=esphome.entry_id,
+        identifiers={("esphome", "buero")},
+        connections={(dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:01")},
+        name="Bürosensor",
+        model="ESP32",
+        sw_version="2024.6.0",
+    )
     _entitaet(hass, board, "buero_temp", "21.5")
 
-    registry = dr.async_get(hass)
     kind = registry.async_get_or_create(
         config_entry_id=esphome.entry_id,
-        connections={(dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:02")},
+        identifiers={("esphome", "buero-relais")},
         name="Bürosensor Relais",
-        via_device=(dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:01"),
+        via_device=("esphome", "buero"),
     )
     assert kind.via_device_id == board.id, (
         "Home Assistant hat via_device nicht aufgeloest -- ohne das ist "
