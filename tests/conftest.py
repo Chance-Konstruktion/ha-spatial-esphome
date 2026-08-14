@@ -86,7 +86,27 @@ class _Registry:
 _DEVICES = _Registry()
 _ENTITIES = _Registry()
 
-_module("homeassistant.helpers.device_registry", async_get=lambda _hass: _DEVICES)
+def async_entries_for_config_entry(registry, entry_id):
+    """Alle Geraete, die unter diesem Config Entry angelegt wurden.
+
+    Der Adapter fragt die Boards ueber die Config Entries ab und nicht
+    ueber ``identifiers``: ESPHome registriert ein Board allein ueber
+    seine MAC-Adresse, eine Suche nach einem ``esphome``-Identifier
+    findet deshalb kein einziges. Diese Nachbildung filtert ueber genau
+    das Feld, das FakeDevice ohnehin schon fuehrt.
+    """
+    return [
+        device
+        for device in registry.devices.values()
+        if entry_id in getattr(device, "config_entries", ())
+    ]
+
+
+_module(
+    "homeassistant.helpers.device_registry",
+    async_get=lambda _hass: _DEVICES,
+    async_entries_for_config_entry=async_entries_for_config_entry,
+)
 _module("homeassistant.helpers.entity_registry", async_get=lambda _hass: _ENTITIES)
 
 
@@ -169,6 +189,18 @@ class FakeConfigEntries:
 
     def async_get_entry(self, entry_id):
         return self.entries.get(entry_id)
+
+    def async_entries(self, domain=None):
+        """Die Eintraege einer Integration.
+
+        Der Weg, auf dem der Adapter die ESPHome-Boards findet. Ohne
+        Angabe einer Domain kommt alles zurueck, wie beim Original.
+        """
+        return [
+            entry
+            for entry in self.entries.values()
+            if domain is None or getattr(entry, "domain", None) == domain
+        ]
 
 
 class FakeHass:
