@@ -5,7 +5,7 @@ nicht pro Entität. Der Punkt sitzt in dem Bereich, den Home Assistant dem
 Gerät ohnehin schon gegeben hat, und sagt, ob die Platine erreichbar ist.
 
 Diese Integration rendert nichts selbst. Sie meldet ihre Daten bei
-[Spatial Hub](https://github.com/Chance-Konstruktion/ha-spatial-hub) an —
+[Spatial Hub](https://gitlab.schanz.ipv64.net/chance-konstruktion/ha-spatial-hub) an —
 der Hub entscheidet, wo gezeichnet wird. Ohne installierten Hub tut sie
 nichts, kostet aber auch nichts.
 
@@ -27,7 +27,7 @@ Moment, in dem er ein Katalog ist statt einer Plattform.
 
 1. HACS → **Integrationen** → Menü oben rechts → **Benutzerdefinierte
    Repositories**.
-2. `https://github.com/Chance-Konstruktion/ha-spatial-esphome` als
+2. `https://gitlab.schanz.ipv64.net/chance-konstruktion/ha-spatial-esphome` als
    Kategorie **Integration** hinzufügen.
 3. Installieren, Home Assistant neu starten.
 
