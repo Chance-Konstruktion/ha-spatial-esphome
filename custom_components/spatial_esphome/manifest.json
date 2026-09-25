@@ -1,6 +1,6 @@
 {
   "domain": "spatial_esphome",
-  "name": "Spatial Hub: ESPHome",
+  "name": "spatial-hub: esphome",
   "after_dependencies": [
     "esphome"
   ],
