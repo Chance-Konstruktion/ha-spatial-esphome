@@ -25,6 +25,12 @@ Moment, in dem er ein Katalog ist statt einer Plattform.
 
 ### Über HACS
 
+Dieser Knopf öffnet das Repository in deiner eigenen HACS-Installation und trägt es dabei automatisch als benutzerdefiniertes Repository ein:
+
+[![Öffne deine Home-Assistant-Instanz und dieses Repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Chance-Konstruktion&repository=ha-spatial-esphome&category=integration)
+
+Oder von Hand in HACS:
+
 1. HACS → **Integrationen** → Menü oben rechts → **Benutzerdefinierte
    Repositories**.
 2. `https://gitlab.schanz.ipv64.net/chance-konstruktion/ha-spatial-esphome` als
@@ -40,6 +46,8 @@ kopieren, Home Assistant neu starten.
 
 **Einstellungen → Geräte & Dienste → Integration hinzufügen → „Spatial
 Hub: ESPHome"**.
+
+[![Öffne deine Home-Assistant-Instanz und starte die Einrichtung der Integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=spatial_esphome)
 
 Es gibt nichts einzustellen. Voraussetzungen sind eine laufende
 ESPHome-Integration und der Spatial Hub; ohne sie geht nichts kaputt, die
