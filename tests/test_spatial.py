@@ -47,6 +47,19 @@ def test_a_board_nobody_can_reach_is_offline():
     assert nodes[0]["icon"] == "mdi:chip-off"
 
 
+def test_disabled_entities_do_not_make_a_board_look_offline():
+    from conftest import _ENTITIES
+
+    hass = _setup({"sensor.a": "unavailable"})
+    _ENTITIES.entities["sensor.a"].disabled_by = "user"
+
+    node = _nodes(hass)[0]
+
+    assert node["state"] == "unknown"
+    assert node["metadata"]["entitaeten"] == 0
+    assert "entity_id" not in node
+
+
 def test_a_board_without_entities_says_it_does_not_know():
     """Nothing answered because nothing was asked. That is not "offline"."""
     nodes = _nodes(_setup({}))
