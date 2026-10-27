@@ -100,12 +100,26 @@ def _boards(hass: HomeAssistant) -> list[tuple[Any, list[Any]]]:
     ]
 
 
-def _entities_of(hass: HomeAssistant, device_ids: set[str]) -> list[Any]:
-    """The board's own entities -- the ones ESPHome itself reports.
+def _entities_by_device(hass: HomeAssistant) -> dict[str, list[Any]]:
+    """Index enabled ESPHome entities once for the current model refresh."""
+    try:
+        registry = er.async_get(hass)
+    except (AttributeError, KeyError):  # pragma: no cover
+        return {}
+    by_device: dict[str, list[Any]] = {}
+    for entry in getattr(registry, "entities", {}).values():
+        device_id = getattr(entry, "device_id", None)
+        if (
+            device_id
+            and getattr(entry, "platform", ESPHOME_DOMAIN) == ESPHOME_DOMAIN
+            and not getattr(entry, "disabled_by", None)
+        ):
+            by_device.setdefault(device_id, []).append(entry)
+    return by_device
 
-    ``device_ids`` is the board plus its sub-devices, because an entity
-    sitting on a sub-device is still hanging off that one box and still
-    goes quiet with it.
+
+def _entities_of(hass: HomeAssistant, device_ids: set[str]) -> list[Any]:
+    """The board's own entities, including those on its sub-devices.
 
     A device is not one integration's property. The router puts a
     ``device_tracker`` on the same device, because it is the same MAC, and
@@ -114,16 +128,11 @@ def _entities_of(hass: HomeAssistant, device_ids: set[str]) -> list[Any]:
     paint a board green because something else still has an opinion about
     it, which is exactly the answer nobody asked for.
     """
-    try:
-        registry = er.async_get(hass)
-    except (AttributeError, KeyError):  # pragma: no cover
-        return []
+    by_device = _entities_by_device(hass)
     return [
-        entry
-        for entry in getattr(registry, "entities", {}).values()
-        if getattr(entry, "device_id", None) in device_ids
-        and getattr(entry, "platform", ESPHOME_DOMAIN) == ESPHOME_DOMAIN
-        and not getattr(entry, "disabled_by", None)
+        entity
+        for device_id in device_ids
+        for entity in by_device.get(device_id, [])
     ]
 
 
@@ -224,10 +233,14 @@ _ICONS = {
 def async_setup_spatial(hass: HomeAssistant, entry: Any) -> None:
     def data() -> dict[str, list]:
         nodes = []
+        entities_by_device = _entities_by_device(hass)
         for device, children in _boards(hass):
-            entries = _entities_of(
-                hass, {device.id, *(child.id for child in children)}
-            )
+            device_ids = [device.id, *(child.id for child in children)]
+            entries = [
+                entity
+                for device_id in device_ids
+                for entity in entities_by_device.get(device_id, [])
+            ]
             sleeps = _sleeps(hass, device)
             state = _reachable(hass, entries, sleeps)
             nodes.append(

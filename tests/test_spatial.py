@@ -60,6 +60,34 @@ def test_disabled_entities_do_not_make_a_board_look_offline():
     assert "entity_id" not in node
 
 
+def test_entity_registry_is_scanned_once_per_refresh(monkeypatch):
+    from homeassistant.helpers import entity_registry as er
+    from conftest import _DEVICES, _ENTITIES, FakeDevice, FakeEntity
+
+    hass = FakeHass()
+    house(hass, entities={"sensor.a": "21.5"})
+    _DEVICES.devices["b2"] = FakeDevice("b2")
+    _ENTITIES.entities["sensor.b"] = FakeEntity(
+        "sensor.b", device_id="b2"
+    )
+    hass.states.set("sensor.b", "18.0")
+    async_setup_spatial(hass, FakeEntry())
+
+    original_get = er.async_get
+    calls = 0
+
+    def counted_get(instance):
+        nonlocal calls
+        calls += 1
+        return original_get(instance)
+
+    monkeypatch.setattr(er, "async_get", counted_get)
+    nodes = _nodes(hass)
+
+    assert len(nodes) == 2
+    assert calls == 1, "the entity registry should be indexed once per refresh"
+
+
 def test_a_board_without_entities_says_it_does_not_know():
     """Nothing answered because nothing was asked. That is not "offline"."""
     nodes = _nodes(_setup({}))
