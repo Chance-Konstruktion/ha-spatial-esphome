@@ -134,6 +134,28 @@ def test_a_deep_sleep_board_that_is_awake_is_simply_online():
     assert nodes[0]["state"] == "online"
 
 
+def test_sleep_lookup_prefers_current_single_config_entry_id():
+    """Current HA device entries must not touch deprecated config_entries."""
+    from custom_components.spatial_esphome.spatial import _sleeps
+    from conftest import FakeEsphomeEntry
+
+    hass = FakeHass()
+    hass.config_entries.entries = {
+        "esphome-entry": FakeEsphomeEntry(has_deep_sleep=True)
+    }
+
+    class CurrentDevice:
+        config_entry_id = "esphome-entry"
+
+        @property
+        def config_entries(self):
+            raise AssertionError(
+                "the deprecated multi-entry property must not be read"
+            )
+
+    assert _sleeps(hass, CurrentDevice()) is True
+
+
 def test_a_mains_fed_board_that_goes_quiet_still_says_offline():
     """The distinction only exists because the two are different."""
     nodes = _nodes(_setup({"sensor.a": "unavailable"}, deep_sleep=False))
