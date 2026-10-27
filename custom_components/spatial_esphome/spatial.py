@@ -123,6 +123,7 @@ def _entities_of(hass: HomeAssistant, device_ids: set[str]) -> list[Any]:
         for entry in getattr(registry, "entities", {}).values()
         if getattr(entry, "device_id", None) in device_ids
         and getattr(entry, "platform", ESPHOME_DOMAIN) == ESPHOME_DOMAIN
+        and not getattr(entry, "disabled_by", None)
     ]
 
 
