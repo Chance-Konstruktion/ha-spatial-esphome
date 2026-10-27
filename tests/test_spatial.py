@@ -47,6 +47,19 @@ def test_a_board_nobody_can_reach_is_offline():
     assert nodes[0]["icon"] == "mdi:chip-off"
 
 
+def test_disabled_entities_do_not_make_a_board_look_offline():
+    from conftest import _ENTITIES
+
+    hass = _setup({"sensor.a": "unavailable"})
+    _ENTITIES.entities["sensor.a"].disabled_by = "user"
+
+    node = _nodes(hass)[0]
+
+    assert node["state"] == "unknown"
+    assert node["metadata"]["entitaeten"] == 0
+    assert "entity_id" not in node
+
+
 def test_a_board_without_entities_says_it_does_not_know():
     """Nothing answered because nothing was asked. That is not "offline"."""
     nodes = _nodes(_setup({}))
@@ -91,6 +104,28 @@ def test_a_deep_sleep_board_that_is_awake_is_simply_online():
     nodes = _nodes(_setup({"sensor.a": "12.4"}, deep_sleep=True))
 
     assert nodes[0]["state"] == "online"
+
+
+def test_sleep_lookup_prefers_current_single_config_entry_id():
+    """Current HA device entries must not touch deprecated config_entries."""
+    from custom_components.spatial_esphome.spatial import _sleeps
+    from conftest import FakeEsphomeEntry
+
+    hass = FakeHass()
+    hass.config_entries.entries = {
+        "esphome-entry": FakeEsphomeEntry(has_deep_sleep=True)
+    }
+
+    class CurrentDevice:
+        config_entry_id = "esphome-entry"
+
+        @property
+        def config_entries(self):
+            raise AssertionError(
+                "the deprecated multi-entry property must not be read"
+            )
+
+    assert _sleeps(hass, CurrentDevice()) is True
 
 
 def test_a_mains_fed_board_that_goes_quiet_still_says_offline():

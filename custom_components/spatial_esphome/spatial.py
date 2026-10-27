@@ -123,6 +123,7 @@ def _entities_of(hass: HomeAssistant, device_ids: set[str]) -> list[Any]:
         for entry in getattr(registry, "entities", {}).values()
         if getattr(entry, "device_id", None) in device_ids
         and getattr(entry, "platform", ESPHOME_DOMAIN) == ESPHOME_DOMAIN
+        and not getattr(entry, "disabled_by", None)
     ]
 
 
@@ -139,9 +140,22 @@ def _sleeps(hass: HomeAssistant, device: Any) -> bool:
     interface -- so every step of the way down is defensive, and a board
     whose answer cannot be read is simply treated as one that never
     sleeps. Wrong colour on one board beats no layer at all.
+
+    Prefer the public single-entry property for ordinary devices. Reading
+    ``DeviceEntry.config_entries`` is deprecated in current Home Assistant
+    and scheduled for removal; retain it only as a compatibility fallback
+    for older versions and composite entries without a single entry ID.
     """
     try:
-        for entry_id in getattr(device, "config_entries", ()) or ():
+        config_entry_id = getattr(device, "config_entry_id", None)
+        if config_entry_id is not None:
+            entry_ids = (config_entry_id,)
+        else:
+            # Older Home Assistant versions and composite device entries
+            # may not expose one owning config_entry_id.
+            entry_ids = getattr(device, "config_entries", ()) or ()
+
+        for entry_id in entry_ids:
             entry = hass.config_entries.async_get_entry(entry_id)
             if entry is None or getattr(entry, "domain", "") != ESPHOME_DOMAIN:
                 continue
