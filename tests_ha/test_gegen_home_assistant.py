@@ -20,6 +20,7 @@ eigener CI-Job, nicht als Ersatz fuer ``tests/``, sondern daneben.
 from __future__ import annotations
 
 import pytest
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -342,3 +343,36 @@ async def test_ohne_esphome_im_haus_bleibt_die_ebene_leer(hass, eintrag):
     """
     async_setup_spatial(hass, eintrag)
     assert _knoten(hass) == []
+
+
+async def test_eintrags_setup_datenpfad_und_entladen(hass, eintrag):
+    """Der echte Config-Entry-Lebenszyklus umfasst Anmeldung, Nutzlast und Rueckbau.
+
+    Die bisherigen Tests riefen den Setup-Helfer direkt auf. Dieser Test
+    laedt die Integration ueber Home Assistants Config-Entry-Verwaltung,
+    liest einen Knoten aus einem synthetischen ESPHome-Geraet und entlaedt
+    danach den Eintrag. Die MAC ist erfunden und lokal administriert.
+    """
+    esphome_eintrag = _esphome_eintrag(hass)
+    board = _board(hass, esphome_eintrag, mac="02:00:00:00:00:01")
+    _entitaet(hass, board, "spatial-lifecycle", "online")
+
+    assert await hass.config_entries.async_setup(eintrag.entry_id)
+    await hass.async_block_till_done()
+    assert eintrag.state is ConfigEntryState.LOADED
+
+    providers = hass.data.get("spatial_hub_providers", {})
+    assert EIGENE_DOMAIN in providers
+    nutzlast = providers[EIGENE_DOMAIN]["data"]()
+    knoten = next(
+        knoten
+        for knoten in nutzlast["nodes"]
+        if knoten["id"] == f"board-{board.id}"
+    )
+    assert knoten["state"] == "online"
+    assert knoten["label"] == board.name
+
+    assert await hass.config_entries.async_unload(eintrag.entry_id)
+    await hass.async_block_till_done()
+    assert eintrag.state is ConfigEntryState.NOT_LOADED
+    assert EIGENE_DOMAIN not in hass.data.get("spatial_hub_providers", {})
