@@ -106,6 +106,7 @@ async def eintrag(hass: HomeAssistant, enable_custom_integrations):
     if eigener.state is ConfigEntryState.LOADED:
         assert await hass.config_entries.async_unload(eigener.entry_id)
         await hass.async_block_till_done()
+        assert EIGENE_DOMAIN not in hass.data.get("spatial_hub_providers", {})
 
 
 # ── Die Tests ─────────────────────────────────────────────────────────
