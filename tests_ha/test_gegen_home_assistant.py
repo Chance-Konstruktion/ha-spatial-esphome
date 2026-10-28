@@ -177,6 +177,8 @@ async def test_via_device_id_verweist_direkt_auf_geraete_id(hass):
     )
     assert kind.via_device_id == board.id
     assert kind.id != board.id
+
+
 async def test_untergeraete_werden_eingeklappt(hass, eintrag):
     """Ein Board, das sich als mehrere Geraete meldet, bleibt ein Punkt.
 
@@ -329,10 +331,10 @@ async def test_ohne_esphome_im_haus_bleibt_die_ebene_leer(hass, eintrag):
 async def test_eintrags_setup_datenpfad_und_entladen(hass, eintrag):
     """Der echte Config-Entry-Lebenszyklus umfasst Anmeldung, Nutzlast und Rueckbau.
 
-    Die bisherigen Tests riefen den Setup-Helfer direkt auf. Dieser Test
-    laedt die Integration ueber Home Assistants Config-Entry-Verwaltung,
-    liest einen Knoten aus einem synthetischen ESPHome-Geraet und entlaedt
-    danach den Eintrag. Die MAC ist erfunden und lokal administriert.
+    Neben den gezielten Tests prueft dieser Test den vollstaendigen
+    Setup-/Unload-Pfad ueber Home Assistants Config-Entry-Verwaltung.
+    Der Knoten stammt von einem synthetischen ESPHome-Geraet; die MAC ist
+    erfunden und lokal administriert.
     """
     esphome_eintrag = _esphome_eintrag(hass)
     board = _board(hass, esphome_eintrag, mac="02:00:00:00:00:01")
