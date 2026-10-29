@@ -156,9 +156,9 @@ async def test_boards_werden_ueber_die_config_entries_gefunden(hass, eintrag):
 async def test_via_device_id_verweist_direkt_auf_geraete_id(hass):
     """Untergeraete verweisen auf die ID, nicht auf die MAC des Eltern-Geraets.
 
-    Die aktuelle Home-Assistant-API erwartet `via_device_id` direkt.
     ESPHome legt das Board nur mit einer MAC-Connection und ohne Identifier
-    an; die Verknuepfung muss deshalb auch fuer genau dieses Board bestehen.
+    an. Eine MAC ist deshalb kein gueltiger Wert fuer `via_device_id`;
+    eine echte Registry-Geraete-ID muss direkt uebergeben werden.
     """
     esphome = _esphome_eintrag(hass)
     registry = dr.async_get(hass)
@@ -169,6 +169,17 @@ async def test_via_device_id_verweist_direkt_auf_geraete_id(hass):
         name="Board mit MAC",
     )
     assert board.identifiers == set()
+
+    with pytest.raises(
+        dr.DeviceInfoError,
+        match="via_device_id .* is not a registered device id",
+    ):
+        registry.async_get_or_create(
+            config_entry_id=esphome.entry_id,
+            identifiers={("esphome", "child-with-mac-as-parent")},
+            name="Kind ueber MAC statt ID",
+            via_device_id="aa:bb:cc:dd:ee:01",
+        )
 
     kind = registry.async_get_or_create(
         config_entry_id=esphome.entry_id,
