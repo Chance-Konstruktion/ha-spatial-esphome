@@ -19,6 +19,13 @@ eigener CI-Job, nicht als Ersatz fuer ``tests/``, sondern daneben.
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# Home Assistant's test config dir is temporary; keep this repository's
+# custom_components package importable so the real loader can discover it.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
