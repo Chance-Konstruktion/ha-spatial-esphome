@@ -172,43 +172,31 @@ async def test_boards_werden_ueber_die_config_entries_gefunden(hass, eintrag):
     assert len(_knoten(hass)) == 1
 
 
-async def test_via_device_id_verweist_direkt_auf_geraete_id(hass):
-    """Untergeraete verweisen auf die ID, nicht auf die MAC des Eltern-Geraets.
+async def test_via_device_loest_elterngeraet_ueber_identifier_auf(hass):
+    """async_get_or_create erwartet fuer via_device ein (Domain, Identifier)-Tupel.
 
-    ESPHome legt das Board nur mit einer MAC-Connection und ohne Identifier
-    an. Eine MAC ist deshalb kein gueltiger Wert fuer `via_device_id`;
-    eine echte Registry-Geraete-ID muss direkt uebergeben werden.
+    Die Registry loest damit das Elterngeraet auf. Eine Registry-Geraete-ID
+    gehoert dagegen in via_device_id, etwa bei async_update_device(), wie
+    ESPHome es beim Anlegen seiner Untergeraete macht.
     """
     esphome = _esphome_eintrag(hass)
     registry = dr.async_get(hass)
+    eltern_identifier = (ESPHOME, "board-1")
 
-    board = registry.async_get_or_create(
+    eltern = registry.async_get_or_create(
         config_entry_id=esphome.entry_id,
-        connections={(dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:01")},
-        name="Board mit MAC",
+        identifiers={eltern_identifier},
+        name="Board mit Identifier",
     )
-    assert board.identifiers == set()
-
-    with pytest.raises(
-        dr.DeviceInfoError,
-        match="via_device_id .* is not a registered device id",
-    ):
-        registry.async_get_or_create(
-            config_entry_id=esphome.entry_id,
-            identifiers={("esphome", "child-with-mac-as-parent")},
-            name="Kind ueber MAC statt ID",
-            via_device_id="aa:bb:cc:dd:ee:01",
-        )
-
     kind = registry.async_get_or_create(
         config_entry_id=esphome.entry_id,
-        identifiers={("esphome", "board-relais")},
-        name="Kind ueber Geraete-ID",
-        via_device_id=board.id,
+        identifiers={(ESPHOME, "board-1-relais")},
+        name="Kind ueber Identifier",
+        via_device=eltern_identifier,
     )
-    assert kind.via_device_id == board.id
-    assert kind.id != board.id
 
+    assert kind.via_device_id == eltern.id
+    assert kind.id != eltern.id
 
 async def test_untergeraete_werden_eingeklappt(hass, eintrag):
     """Ein Board, das sich als mehrere Geraete meldet, bleibt ein Punkt.
