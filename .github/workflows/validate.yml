@@ -8,6 +8,23 @@ on:
     - cron: "30 4 * * 1"  # weekly, Monday 04:30 UTC
 
 jobs:
+  tests-ha:
+    name: Home Assistant tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements_test_ha.txt
+      - name: Install test dependencies
+        run: python -m pip install -r requirements_test_ha.txt
+      - name: Run Home Assistant integration tests
+        run: python -m pytest -c pytest-ha.ini
+
   hacs:
     name: HACS
     runs-on: ubuntu-latest

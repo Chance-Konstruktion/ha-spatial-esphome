@@ -19,12 +19,31 @@ eigener CI-Job, nicht als Ersatz fuer ``tests/``, sondern daneben.
 
 from __future__ import annotations
 
+import importlib
+import sys
+from pathlib import Path
+
 import pytest
+
+# Home Assistant's test config dir is temporary. Point the package loader at
+# this checkout even if a plugin imported another custom_components package.
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPOSITORY_ROOT))
+custom_components = importlib.import_module("custom_components")
+_LOCAL_CUSTOM_COMPONENTS = str(_REPOSITORY_ROOT / "custom_components")
+custom_components.__path__ = [
+    _LOCAL_CUSTOM_COMPONENTS,
+    *(
+        search_path
+        for search_path in getattr(custom_components, "__path__", [])
+        if search_path != _LOCAL_CUSTOM_COMPONENTS
+    ),
+]
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.spatial_esphome.spatial import async_setup_spatial
 
 ESPHOME = "esphome"
 EIGENE_DOMAIN = "spatial_esphome"
@@ -98,11 +117,15 @@ def _knoten(hass: HomeAssistant) -> list[dict]:
 
 
 @pytest.fixture
-def eintrag(hass: HomeAssistant):
-    """Der Config Entry der eigenen Integration."""
+async def eintrag(hass: HomeAssistant, enable_custom_integrations):
+    """Der Config Entry der eigenen Integration mit echtem Setup und Rueckbau."""
     eigener = MockConfigEntry(domain=EIGENE_DOMAIN, title="Spatial ESPHome")
     eigener.add_to_hass(hass)
-    return eigener
+    yield eigener
+    if eigener.state is ConfigEntryState.LOADED:
+        assert await hass.config_entries.async_unload(eigener.entry_id)
+        await hass.async_block_till_done()
+        assert EIGENE_DOMAIN not in hass.data.get("spatial_hub_providers", {})
 
 
 # ── Die Tests ─────────────────────────────────────────────────────────
@@ -119,7 +142,7 @@ async def test_ein_board_wird_zu_genau_einem_knoten(hass, eintrag):
     for nummer in range(8):
         _entitaet(hass, board, f"buero_{nummer}", "21.5")
 
-    async_setup_spatial(hass, eintrag)
+    assert await hass.config_entries.async_setup(eintrag.entry_id)
     knoten = _knoten(hass)
 
     assert len(knoten) == 1
@@ -145,56 +168,37 @@ async def test_boards_werden_ueber_die_config_entries_gefunden(hass, eintrag):
         "Das Geraet soll wie bei ESPHome ohne identifiers angelegt sein"
     )
 
-    async_setup_spatial(hass, eintrag)
+    assert await hass.config_entries.async_setup(eintrag.entry_id)
     assert len(_knoten(hass)) == 1
 
 
-async def test_via_device_haengt_an_identifiers_nicht_an_connections(hass):
-    """Woran die Verkettung von Geraeten wirklich haengt.
+async def test_async_update_device_verknuepft_kind_ueber_registry_id(hass):
+    """Verknuepfe Kind und Elternteil ueber die registrierte Geraete-ID.
 
-    Home Assistant loest ``via_device`` ausschliesslich gegen
-    ``identifiers`` auf. Zeigt es auf eine ``connection`` -- eine MAC etwa
-    --, bleibt ``via_device_id`` still auf ``None``, und Home Assistant
-    schreibt eine Warnung, die ab 2025.12 ein Fehler wird.
-
-    Das steht hier als eigener Test, weil es sich nicht ableiten laesst
-    und weil eine Attrappe genau das aufloest, was man ihr beibringt. Wer
-    spaeter Untergeraete verkettet, soll das hier finden, bevor er einen
-    Nachmittag sucht.
+    Die Parameter von async_get_or_create() fuer Elternbeziehungen haben
+    sich zwischen Home-Assistant-Versionen geaendert. ESPHome-kompatibel
+    ist: beide Geraete anlegen und dann async_update_device() mit der
+    echten Registry-ID des Eltern-Geraets aufrufen.
     """
     esphome = _esphome_eintrag(hass)
     registry = dr.async_get(hass)
 
-    ueber_mac = registry.async_get_or_create(
+    eltern = registry.async_get_or_create(
         config_entry_id=esphome.entry_id,
         connections={(dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:01")},
         name="Board mit MAC",
     )
-    kind_per_mac = registry.async_get_or_create(
+    kind = registry.async_get_or_create(
         config_entry_id=esphome.entry_id,
-        connections={(dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:02")},
-        name="Kind ueber MAC",
-        via_device=(dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:01"),
+        identifiers={(ESPHOME, "board-1-relais")},
+        name="Kind",
     )
-    assert kind_per_mac.via_device_id is None, (
-        "Wenn Home Assistant das eines Tages doch aufloest, gehoert der "
-        "Adapter darauf angepasst -- und dieser Test gestrichen"
-    )
-    assert ueber_mac.id != kind_per_mac.via_device_id
+    assert kind.via_device_id is None
 
-    ueber_id = registry.async_get_or_create(
-        config_entry_id=esphome.entry_id,
-        identifiers={("esphome", "board-1")},
-        name="Board mit Identifier",
-    )
-    kind_per_id = registry.async_get_or_create(
-        config_entry_id=esphome.entry_id,
-        identifiers={("esphome", "board-1-relais")},
-        name="Kind ueber Identifier",
-        via_device=("esphome", "board-1"),
-    )
-    assert kind_per_id.via_device_id == ueber_id.id
+    kind = registry.async_update_device(kind.id, via_device_id=eltern.id)
 
+    assert kind.via_device_id == eltern.id
+    assert kind.id != eltern.id
 
 async def test_untergeraete_werden_eingeklappt(hass, eintrag):
     """Ein Board, das sich als mehrere Geraete meldet, bleibt ein Punkt.
@@ -244,7 +248,7 @@ async def test_untergeraete_werden_eingeklappt(hass, eintrag):
     assert kind.via_device_id == board.id
     _entitaet(hass, kind, "buero_relais", "on", eindeutig="esphome-relais")
 
-    async_setup_spatial(hass, eintrag)
+    assert await hass.config_entries.async_setup(eintrag.entry_id)
     knoten = _knoten(hass)
 
     assert len(knoten) == 1
@@ -267,7 +271,7 @@ async def test_fremde_entitaeten_faerben_das_board_nicht_gruen(hass, eintrag):
     _entitaet(hass, board, "buero_tracker", "not_home",
               plattform="device_tracker_source")
 
-    async_setup_spatial(hass, eintrag)
+    assert await hass.config_entries.async_setup(eintrag.entry_id)
     assert _knoten(hass)[0]["state"] == "offline"
 
 
@@ -281,7 +285,7 @@ async def test_ein_stiller_tiefschlaefer_ist_nicht_kaputt(hass, eintrag):
     board = _board(hass, esphome)
     _entitaet(hass, board, "buero_temp", "unavailable")
 
-    async_setup_spatial(hass, eintrag)
+    assert await hass.config_entries.async_setup(eintrag.entry_id)
     knoten = _knoten(hass)
 
     assert knoten[0]["state"] == "asleep"
@@ -301,7 +305,7 @@ async def test_ein_board_ohne_lesbaren_schlafwert_gilt_als_wach(hass, eintrag):
     board = _board(hass, esphome)
     _entitaet(hass, board, "buero_temp", "unavailable")
 
-    async_setup_spatial(hass, eintrag)
+    assert await hass.config_entries.async_setup(eintrag.entry_id)
     knoten = _knoten(hass)
 
     assert knoten[0]["state"] == "offline"
@@ -320,11 +324,12 @@ async def test_knoten_ids_bleiben_ueber_neustarts_gleich(hass, eintrag):
     board = _board(hass, esphome)
     _entitaet(hass, board, "buero_temp", "21.5")
 
-    async_setup_spatial(hass, eintrag)
+    assert await hass.config_entries.async_setup(eintrag.entry_id)
     vorher = [knoten["id"] for knoten in _knoten(hass)]
 
-    hass.data.pop("spatial_hub_providers")
-    async_setup_spatial(hass, eintrag)
+    assert await hass.config_entries.async_unload(eintrag.entry_id)
+    await hass.async_block_till_done()
+    assert await hass.config_entries.async_setup(eintrag.entry_id)
     nachher = [knoten["id"] for knoten in _knoten(hass)]
 
     assert vorher == nachher
@@ -340,5 +345,38 @@ async def test_ohne_esphome_im_haus_bleibt_die_ebene_leer(hass, eintrag):
     ueber ``identifiers``, und der findet bauartbedingt null Boards --
     er wuerde eine ehrliche leere Liste gegen eine stille tauschen.
     """
-    async_setup_spatial(hass, eintrag)
+    assert await hass.config_entries.async_setup(eintrag.entry_id)
     assert _knoten(hass) == []
+
+
+async def test_eintrags_setup_datenpfad_und_entladen(hass, eintrag):
+    """Der echte Config-Entry-Lebenszyklus umfasst Anmeldung, Nutzlast und Rueckbau.
+
+    Neben den gezielten Tests prueft dieser Test den vollstaendigen
+    Setup-/Unload-Pfad ueber Home Assistants Config-Entry-Verwaltung.
+    Der Knoten stammt von einem synthetischen ESPHome-Geraet; die MAC ist
+    erfunden und lokal administriert.
+    """
+    esphome_eintrag = _esphome_eintrag(hass)
+    board = _board(hass, esphome_eintrag, mac="02:00:00:00:00:01")
+    _entitaet(hass, board, "spatial-lifecycle", "online")
+
+    assert await hass.config_entries.async_setup(eintrag.entry_id)
+    await hass.async_block_till_done()
+    assert eintrag.state is ConfigEntryState.LOADED
+
+    providers = hass.data.get("spatial_hub_providers", {})
+    assert EIGENE_DOMAIN in providers
+    nutzlast = providers[EIGENE_DOMAIN]["data"]()
+    knoten = next(
+        knoten
+        for knoten in nutzlast["nodes"]
+        if knoten["id"] == f"board-{board.id}"
+    )
+    assert knoten["state"] == "online"
+    assert knoten["label"] == board.name
+
+    assert await hass.config_entries.async_unload(eintrag.entry_id)
+    await hass.async_block_till_done()
+    assert eintrag.state is ConfigEntryState.NOT_LOADED
+    assert EIGENE_DOMAIN not in hass.data.get("spatial_hub_providers", {})
