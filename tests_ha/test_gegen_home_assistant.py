@@ -22,11 +22,18 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# Home Assistant's test config dir is temporary; keep this repository's
-# custom_components package importable so the real loader can discover it.
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
+import custom_components
 import pytest
+
+# Home Assistant's test config dir is temporary. Point the package loader at
+# this checkout even if a plugin imported another custom_components package.
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPOSITORY_ROOT))
+_LOCAL_CUSTOM_COMPONENTS = str(_REPOSITORY_ROOT / "custom_components")
+custom_components.__path__ = [
+    _LOCAL_CUSTOM_COMPONENTS,
+    *(path for path in custom_components.__path__ if path != _LOCAL_CUSTOM_COMPONENTS),
+]
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
