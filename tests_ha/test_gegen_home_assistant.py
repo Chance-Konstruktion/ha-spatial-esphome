@@ -19,20 +19,25 @@ eigener CI-Job, nicht als Ersatz fuer ``tests/``, sondern daneben.
 
 from __future__ import annotations
 
+import importlib
 import sys
 from pathlib import Path
 
-import custom_components
 import pytest
 
 # Home Assistant's test config dir is temporary. Point the package loader at
 # this checkout even if a plugin imported another custom_components package.
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPOSITORY_ROOT))
+custom_components = importlib.import_module("custom_components")
 _LOCAL_CUSTOM_COMPONENTS = str(_REPOSITORY_ROOT / "custom_components")
 custom_components.__path__ = [
     _LOCAL_CUSTOM_COMPONENTS,
-    *(path for path in custom_components.__path__ if path != _LOCAL_CUSTOM_COMPONENTS),
+    *(
+        search_path
+        for search_path in getattr(custom_components, "__path__", [])
+        if search_path != _LOCAL_CUSTOM_COMPONENTS
+    ),
 ]
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
