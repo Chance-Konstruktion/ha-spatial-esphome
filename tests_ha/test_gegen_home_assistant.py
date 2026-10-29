@@ -172,28 +172,30 @@ async def test_boards_werden_ueber_die_config_entries_gefunden(hass, eintrag):
     assert len(_knoten(hass)) == 1
 
 
-async def test_via_device_loest_elterngeraet_ueber_identifier_auf(hass):
-    """async_get_or_create erwartet fuer via_device ein (Domain, Identifier)-Tupel.
+async def test_async_update_device_verknuepft_kind_ueber_registry_id(hass):
+    """Verknuepfe Kind und Elternteil ueber die registrierte Geraete-ID.
 
-    Die Registry loest damit das Elterngeraet auf. Eine Registry-Geraete-ID
-    gehoert dagegen in via_device_id, etwa bei async_update_device(), wie
-    ESPHome es beim Anlegen seiner Untergeraete macht.
+    Die Parameter von async_get_or_create() fuer Elternbeziehungen haben
+    sich zwischen Home-Assistant-Versionen geaendert. ESPHome-kompatibel
+    ist: beide Geraete anlegen und dann async_update_device() mit der
+    echten Registry-ID des Eltern-Geraets aufrufen.
     """
     esphome = _esphome_eintrag(hass)
     registry = dr.async_get(hass)
-    eltern_identifier = (ESPHOME, "board-1")
 
     eltern = registry.async_get_or_create(
         config_entry_id=esphome.entry_id,
-        identifiers={eltern_identifier},
-        name="Board mit Identifier",
+        connections={(dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:01")},
+        name="Board mit MAC",
     )
     kind = registry.async_get_or_create(
         config_entry_id=esphome.entry_id,
         identifiers={(ESPHOME, "board-1-relais")},
-        name="Kind ueber Identifier",
-        via_device=eltern_identifier,
+        name="Kind",
     )
+    assert kind.via_device_id is None
+
+    kind = registry.async_update_device(kind.id, via_device_id=eltern.id)
 
     assert kind.via_device_id == eltern.id
     assert kind.id != eltern.id
