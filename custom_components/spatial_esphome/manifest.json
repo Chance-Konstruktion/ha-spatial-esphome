@@ -9,10 +9,10 @@
   ],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/Chance-Konstruktion/ha-spatial-esphome",
+  "documentation": "https://gitlab.schanz.ipv64.net/chance-konstruktion/ha-spatial-esphome",
   "integration_type": "service",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/Chance-Konstruktion/ha-spatial-esphome/issues",
+  "issue_tracker": "https://gitlab.schanz.ipv64.net/chance-konstruktion/ha-spatial-esphome/-/issues",
   "requirements": [],
   "single_config_entry": true,
   "version": "260808"

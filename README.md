@@ -25,6 +25,9 @@ Moment, in dem er ein Katalog ist statt einer Plattform.
 
 ### Über HACS
 
+Dieses Repo hier ist das kanonische; HACS kennt nur GitHub, deshalb
+dient der GitHub-Spiegel unten rein als Installationsquelle.
+
 Dieser Knopf öffnet das Repository in deiner eigenen HACS-Installation und trägt es dabei automatisch als benutzerdefiniertes Repository ein:
 
 [![Öffne deine Home-Assistant-Instanz und dieses Repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Chance-Konstruktion&repository=ha-spatial-esphome&category=integration)
@@ -44,8 +47,8 @@ kopieren, Home Assistant neu starten.
 
 ### Danach
 
-**Einstellungen → Geräte & Dienste → Integration hinzufügen → „Spatial
-Hub: ESPHome"**.
+**Einstellungen → Geräte & Dienste → Integration hinzufügen →
+„spatial-hub: esphome"**.
 
 [![Öffne deine Home-Assistant-Instanz und starte die Einrichtung der Integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=spatial_esphome)
 
@@ -64,7 +67,7 @@ ESPHome-Integration, keine eigene Verbindung zu den Boards, kein API-Key.
 | Bereich | der Bereich, dem das Gerät in HA schon zugeordnet ist |
 | Name | der eigene Gerätename, sonst der von ESPHome gemeldete |
 | Zustand | siehe unten |
-| Metadaten | `modell`, `firmware`, `entitaeten` (wie viel an dieser Box hängt) |
+| Metadaten | `modell`, `firmware`, `schlafmodus`, `entitaeten` (wie viel an dieser Box hängt), nur wenn das Board sich selbst aufspaltet: `untergeraete` |
 | Verlinkung | eine Entität des Boards, damit der Popup eine Tür nach HA hat |
 
 Aktualisiert wird alle **30 Sekunden**. Es gibt kein Signal, auf das sich

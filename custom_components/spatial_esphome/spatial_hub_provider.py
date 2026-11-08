@@ -58,7 +58,7 @@ API_VERSION = 1
 # contract above is frozen; this is not part of it.
 #
 # 5 -- `anchors`: say what a node is near when you cannot say where it is.
-SDK_VERSION = 7
+SDK_VERSION = 9
 
 # ── Spatial vocabulary (Specification 1.0) ───────────────────────────
 #
@@ -175,16 +175,26 @@ def spatial_provider(
     if signals:
         if isinstance(signals, str):
             signals = [signals]
+
+        # Swallow the payload. Dispatcher signals carry whatever their
+        # sender felt like sending -- a unit number, a node object, nothing
+        # at all -- and the hub does not want to know: it re-fetches.
+        # Connecting async_notify directly raises TypeError on any signal
+        # that carries something.
+        #
+        # The @callback is not decoration. The dispatcher looks at the
+        # target to decide where it runs, and a plain lambda counts as
+        # blocking code: it goes to the executor, and async_notify then
+        # calls async_dispatcher_send from a worker thread. Home Assistant
+        # aborts that ("calls async_dispatcher_send from a thread other
+        # than the event loop") and the hub never hears a thing.
+        @callback
+        def _notify_on_signal(*_args: Any) -> None:
+            provider.async_notify()
+
         for signal in signals:
             provider.async_on_unregister(
-                # Swallow the payload. Dispatcher signals carry whatever
-                # their sender felt like sending -- a unit number, a node
-                # object, nothing at all -- and the hub does not want to
-                # know: it re-fetches. Connecting async_notify directly
-                # raises TypeError on any signal that carries something.
-                async_dispatcher_connect(
-                    hass, signal, lambda *_args: provider.async_notify()
-                )
+                async_dispatcher_connect(hass, signal, _notify_on_signal)
             )
 
     return provider
@@ -309,7 +319,14 @@ def edge(
         "color": color,
         "width": width,
     }
-    result.update({key: value for key, value in optional.items() if value})
+    # Zero is a meaningful numeric value (e.g. a measured value of 0 or an
+    # intentionally invisible edge with width=0). Only omit absent values
+    # and empty strings; truthiness would silently replace zero with defaults.
+    result.update({
+        key: value
+        for key, value in optional.items()
+        if value is not None and (key in {"value", "width"} or value != "")
+    })
     result.update({"directed": directed, "dashed": dashed, "animated": animated})
     if metadata:
         result["metadata"] = metadata

@@ -32,7 +32,12 @@ class HomeAssistant:  # noqa: D101 - a name to annotate with, nothing more
     pass
 
 
-def callback(func):  # noqa: D103 - HA's marker decorator, identity here
+def callback(func):  # noqa: D103 - HA's marker decorator
+    # Home Assistant decides from this marker whether a scheduled action
+    # runs in the event loop or in the executor thread pool -- the
+    # distinction the refresh tick must satisfy. The stub carries it so
+    # tests can classify an action the way Home Assistant does.
+    func.__hass_callback__ = True
     return func
 
 
