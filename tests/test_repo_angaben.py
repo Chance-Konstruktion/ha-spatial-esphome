@@ -125,3 +125,18 @@ def test_die_anleitung_erklaert_jeden_metadata_eintrag():
     erwaehnt = set(re.findall(r"`(\w+)`", zeile.group(1)))
     fehlen = set(metadata) - erwaehnt
     assert not fehlen, f"die Metadaten-Zeile erklärt nicht: {sorted(fehlen)}"
+
+
+def test_der_changelog_endet_nicht_mehr_bei_260808():
+    """Der Changelog stand still, während weiter gemergt wurde.
+
+    Der oberste Abschnitt muss jenseits von 260808 datieren -- sonst sind
+    die seither gemergten Änderungen wieder nicht dokumentiert. Eine
+    Versionsanhebung ist das nicht: das Manifest bleibt, wie es ist.
+    """
+    kopf = re.search(r"^##\s+(\d{6})\b", _lies("CHANGELOG.md"), re.M)
+    assert kopf, "der Changelog hat keinen Abschnittskopf"
+    assert int(kopf.group(1)) > 260808, (
+        "der neueste Changelog-Abschnitt ist 260808 -- die seither "
+        "gemergten Änderungen sind nicht dokumentiert"
+    )
