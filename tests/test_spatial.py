@@ -302,3 +302,45 @@ def test_no_dead_entity_gatherer_remains():
     assert not hasattr(spatial, "_entities_of"), (
         "data() builds its index inline -- a second gatherer would drift"
     )
+
+
+def test_a_deactivated_esphome_entry_draws_nothing():
+    """A deactivated entry never builds its entities, so its boards would
+    sit on the plan forever without a real state. Not drawing them is the
+    honest answer -- the same decision as the empty list: what the user
+    turned off has no business on a live plan.
+    """
+    from conftest import (
+        _DEVICES,
+        _ENTITIES,
+        FakeDevice,
+        FakeEntity,
+        FakeEntry,
+        FakeEsphomeEntry,
+        FakeHass,
+    )
+
+    hass = FakeHass()
+    _DEVICES.devices = {
+        "b1": FakeDevice("b1", config_entries=("e1",), name="Lebend"),
+        "b2": FakeDevice("b2", config_entries=("e2",), name="Stillgelegt"),
+    }
+    _ENTITIES.entities = {
+        "sensor.a": FakeEntity("sensor.a", device_id="b1"),
+        "sensor.b": FakeEntity("sensor.b", device_id="b2"),
+    }
+    hass.states.set("sensor.a", "21.5")
+    hass.states.set("sensor.b", "unavailable")
+    hass.config_entries.entries = {
+        "e1": FakeEsphomeEntry("e1"),
+        "e2": FakeEsphomeEntry("e2"),
+    }
+    hass.config_entries.entries["e2"].disabled_by = "user"
+    async_setup_spatial(hass, FakeEntry())
+
+    knoten = hass.registrations["spatial_esphome"]["data"]()["nodes"]
+
+    assert [ein_knoten["label"] for ein_knoten in knoten] == ["Lebend"], (
+        "ein stillgelegter Eintrag ist kein dauerhaft totes Board -- "
+        "er wird gar nicht gezeichnet"
+    )

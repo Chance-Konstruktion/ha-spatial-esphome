@@ -83,6 +83,12 @@ def _boards(hass: HomeAssistant) -> list[tuple[Any, list[Any]]]:
     # ESPHome boards, and drawing none of them is correct.
     devices: dict[str, Any] = {}
     for entry in hass.config_entries.async_entries(ESPHOME_DOMAIN):
+        # A deactivated entry means the user turned the integration off.
+        # Its entities are never built, so its boards would sit on the
+        # plan forever without a real state. Not drawing them is the
+        # honest answer, the same decision the empty list makes below.
+        if getattr(entry, "disabled_by", None) is not None:
+            continue
         for device in dr.async_entries_for_config_entry(registry, entry.entry_id):
             devices[device.id] = device
 
