@@ -344,3 +344,54 @@ def test_a_deactivated_esphome_entry_draws_nothing():
         "ein stillgelegter Eintrag ist kein dauerhaft totes Board -- "
         "er wird gar nicht gezeichnet"
     )
+
+
+def test_grandchildren_are_an_assumption_not_a_guarantee():
+    """ESPHome baut hoechstens eine Ebene Untergeraete -- mehr gibt es
+    nicht, aber geschrieben steht das nur im Docstring von ``_boards()``.
+
+    Ein Geraet, dessen ``via_device_id`` auf ein Untergeraet zeigt (ein
+    Enkel des Boards), faellt unter das Untergeraet und verschwindet
+    still aus Knoten und Zaehlung. Diese Annahme haelt der Test fest:
+    bricht sie eines Tages, wird das hier rot statt leise.
+    """
+    from conftest import (
+        _DEVICES,
+        _ENTITIES,
+        FakeDevice,
+        FakeEntity,
+        FakeEntry,
+        FakeEsphomeEntry,
+        FakeHass,
+    )
+
+    hass = FakeHass()
+    board = FakeDevice("b1", config_entries=("e1",), name="Board")
+    kind = FakeDevice("b1-relais", config_entries=("e1",), name="Relais")
+    kind.via_device_id = "b1"
+    enkel = FakeDevice("b1-relais-ext", config_entries=("e1",), name="Ext")
+    enkel.via_device_id = "b1-relais"
+    _DEVICES.devices = {
+        "b1": board,
+        "b1-relais": kind,
+        "b1-relais-ext": enkel,
+    }
+    _ENTITIES.entities = {
+        "sensor.board": FakeEntity("sensor.board", device_id="b1"),
+        "sensor.relais": FakeEntity("sensor.relais", device_id="b1-relais"),
+        "sensor.ext": FakeEntity("sensor.ext", device_id="b1-relais-ext"),
+    }
+    hass.states.set("sensor.board", "21.5")
+    hass.states.set("sensor.relais", "on")
+    hass.states.set("sensor.ext", "21.5")
+    hass.config_entries.entries = {"e1": FakeEsphomeEntry("e1")}
+    async_setup_spatial(hass, FakeEntry())
+
+    knoten = hass.registrations["spatial_esphome"]["data"]()["nodes"]
+
+    assert len(knoten) == 1
+    assert knoten[0]["metadata"]["untergeraete"] == 1
+    assert knoten[0]["metadata"]["entitaeten"] == 2, (
+        "der Enkel faellt unter das Untergeraet und zaehlt nicht mit -- "
+        "genau die Ein-Schicht-Annahme aus dem Docstring von _boards()"
+    )

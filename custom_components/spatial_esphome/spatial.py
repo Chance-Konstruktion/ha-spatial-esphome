@@ -57,6 +57,14 @@ def _boards(hass: HomeAssistant) -> list[tuple[Any, list[Any]]]:
     rather than drawn: this layer exists to be *one dot per board*, and a
     board that splits itself into six is still one thing on the wall.
 
+    The fold is deliberately one level deep. ESPHome builds at most that:
+    a sub-device never points at another sub-device. A grandchild -- a
+    device whose ``via_device_id`` names a sub-device -- would be folded
+    under the sub-device and so vanish from the drawn boards *and* from
+    the entity count, silently. That is field truth today, not a
+    guarantee anywhere in Home Assistant; the assumption is written here
+    and pinned by a test, so if it ever breaks, it breaks loudly.
+
     That fold does run in the field, which is not obvious given the
     sentence above: Home Assistant resolves ``via_device`` against
     ``identifiers`` only, and a board has none. ESPHome sidesteps the
