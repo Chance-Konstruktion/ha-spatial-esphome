@@ -251,3 +251,41 @@ def test_the_plan_follows_the_boards_without_a_push():
     _setup({"sensor.a": "21.5"})
 
     assert SCHEDULED, "nothing would ever refresh the layer"
+
+
+def test_the_scheduled_tick_notifies_from_the_event_loop(monkeypatch):
+    """The tick must run in the event loop, and it must actually notify.
+
+    A bare lambda is executor work to Home Assistant: the tick goes to the
+    worker thread pool, and from there async_dispatcher_send is refused --
+    every 30 seconds an exception, and the hub never hears anything after
+    the first draw. A callback runs in the loop, where the notification
+    belongs. Nothing before asserted either half: the scheduled action was
+    recorded, never called.
+    """
+    import custom_components.spatial_esphome.spatial_hub_provider as shim
+    from conftest import SCHEDULED
+
+    from custom_components.spatial_esphome.spatial_hub_provider import (
+        SIGNAL_DATA_UPDATED,
+    )
+
+    gesendet: list[tuple] = []
+    monkeypatch.setattr(
+        shim,
+        "async_dispatcher_send",
+        lambda hass, signal, *args: gesendet.append((signal, *args)),
+    )
+
+    SCHEDULED.clear()
+    _setup({"sensor.a": "21.5"})
+    (action, _interval) = SCHEDULED[0]
+
+    assert getattr(action, "__hass_callback__", False) is True, (
+        "the refresh tick must be a callback -- executor work is refused"
+    )
+    action(None)
+    aktualisierungen = [s for s in gesendet if s[0] == SIGNAL_DATA_UPDATED]
+    assert aktualisierungen == [(SIGNAL_DATA_UPDATED, "spatial_esphome")], (
+        "a tick that never notifies leaves the plan frozen at one frame"
+    )

@@ -23,7 +23,7 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import Any
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import (
     device_registry as dr,
     entity_registry as er,
@@ -279,8 +279,15 @@ def async_setup_spatial(hass: HomeAssistant, entry: Any) -> None:
         version="260808",
     )
 
+    # The tick has to run in the event loop. A bare lambda is executor
+    # work to Home Assistant: it runs in the thread pool, and the
+    # dispatcher refuses to be called from there -- a RuntimeError on
+    # every tick and a plan frozen after the first draw. As a callback
+    # the tick runs in the loop, where the notification belongs.
+    @callback
+    def _refresh_tick(_now: Any) -> None:
+        provider.async_notify()
+
     entry.async_on_unload(
-        async_track_time_interval(
-            hass, lambda _now: provider.async_notify(), REFRESH
-        )
+        async_track_time_interval(hass, _refresh_tick, REFRESH)
     )
