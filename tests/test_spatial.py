@@ -395,3 +395,105 @@ def test_grandchildren_are_an_assumption_not_a_guarantee():
         "der Enkel faellt unter das Untergeraet und zaehlt nicht mit -- "
         "genau die Ein-Schicht-Annahme aus dem Docstring von _boards()"
     )
+
+
+def test_the_30_second_contract_holds_on_both_sides():
+    """README promises an update every 30 seconds; REFRESH is that same
+    promise in code. Each side must keep the other honest: change one
+    without the other and one of them lies.
+    """
+    from datetime import timedelta
+    from pathlib import Path
+
+    from custom_components.spatial_esphome.spatial import REFRESH
+
+    assert REFRESH == timedelta(seconds=30)
+    readme = (
+        Path(__file__).resolve().parents[1] / "README.md"
+    ).read_text(encoding="utf-8")
+    assert "**30 Sekunden**" in readme, (
+        "the README's update promise no longer matches REFRESH"
+    )
+
+
+def test_two_esphome_entries_are_two_boards():
+    """Every other case builds exactly one entry; two entries must mean
+    two dots, not one or zero. A house with several ESPHome configs is
+    the normal case, not the exotic one.
+    """
+    from conftest import (
+        _DEVICES,
+        _ENTITIES,
+        FakeDevice,
+        FakeEntity,
+        FakeEntry,
+        FakeEsphomeEntry,
+        FakeHass,
+    )
+
+    hass = FakeHass()
+    _DEVICES.devices = {
+        "b1": FakeDevice("b1", config_entries=("e1",), name="Wohnzimmer"),
+        "b2": FakeDevice("b2", config_entries=("e2",), name="Keller"),
+    }
+    _ENTITIES.entities = {
+        "sensor.a": FakeEntity("sensor.a", device_id="b1"),
+        "sensor.b": FakeEntity("sensor.b", device_id="b2"),
+    }
+    hass.states.set("sensor.a", "21.5")
+    hass.states.set("sensor.b", "18.0")
+    hass.config_entries.entries = {
+        "e1": FakeEsphomeEntry("e1"),
+        "e2": FakeEsphomeEntry("e2"),
+    }
+    async_setup_spatial(hass, FakeEntry())
+
+    knoten = hass.registrations["spatial_esphome"]["data"]()["nodes"]
+
+    assert sorted(
+        ein_knoten["label"] for ein_knoten in knoten
+    ) == ["Keller", "Wohnzimmer"], (
+        "two config entries carry two boards -- each its own dot"
+    )
+
+
+def test_unloading_the_entry_takes_the_tick_with_it():
+    """The refresh tick is registered on the entry's unload hook: once the
+    entry is gone, nothing may keep ticking. An orphaned tick would fire
+    into a world that no longer listens.
+    """
+    from conftest import SCHEDULED
+
+    SCHEDULED.clear()
+    hass = FakeHass()
+    house(hass, entities={"sensor.a": "21.5"})
+    entry = FakeEntry()
+    async_setup_spatial(hass, entry)
+
+    assert SCHEDULED, "the tick should be scheduled while the entry lives"
+    entry.unload()
+    assert not SCHEDULED, "the tick must die with the entry it serves"
+
+
+def test_a_nameless_board_still_says_esphome():
+    """Neither the user nor ESPHome named the board: the label falls back
+    to "ESPHome" rather than drawing a dot with no name at all.
+    """
+    from conftest import (
+        _DEVICES,
+        _ENTITIES,
+        FakeDevice,
+        FakeEntity,
+        FakeEntry,
+        FakeEsphomeEntry,
+        FakeHass,
+    )
+
+    hass = FakeHass()
+    _DEVICES.devices = {"b1": FakeDevice("b1", name="", name_by_user=None)}
+    _ENTITIES.entities = {"sensor.a": FakeEntity("sensor.a", device_id="b1")}
+    hass.states.set("sensor.a", "21.5")
+    hass.config_entries.entries = {"esphome-entry": FakeEsphomeEntry()}
+    async_setup_spatial(hass, FakeEntry())
+
+    assert _nodes(hass)[0]["label"] == "ESPHome"
