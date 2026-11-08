@@ -118,24 +118,6 @@ def _entities_by_device(hass: HomeAssistant) -> dict[str, list[Any]]:
     return by_device
 
 
-def _entities_of(hass: HomeAssistant, device_ids: set[str]) -> list[Any]:
-    """The board's own entities, including those on its sub-devices.
-
-    A device is not one integration's property. The router puts a
-    ``device_tracker`` on the same device, because it is the same MAC, and
-    that tracker keeps saying ``not_home`` long after the board is dead:
-    the router remembers the address, the board is gone. Counting it would
-    paint a board green because something else still has an opinion about
-    it, which is exactly the answer nobody asked for.
-    """
-    by_device = _entities_by_device(hass)
-    return [
-        entity
-        for device_id in device_ids
-        for entity in by_device.get(device_id, [])
-    ]
-
-
 def _sleeps(hass: HomeAssistant, device: Any) -> bool:
     """Whether this board is *meant* to be gone most of the time.
 

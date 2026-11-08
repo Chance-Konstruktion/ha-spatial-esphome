@@ -289,3 +289,16 @@ def test_the_scheduled_tick_notifies_from_the_event_loop(monkeypatch):
     assert aktualisierungen == [(SIGNAL_DATA_UPDATED, "spatial_esphome")], (
         "a tick that never notifies leaves the plan frozen at one frame"
     )
+
+
+def test_no_dead_entity_gatherer_remains():
+    """Since the perf takeover data() builds its entity index inline.
+
+    ``_entities_of()`` had no caller left -- a second gatherer beside the
+    inline one invites exactly the drift that made it dead code.
+    """
+    import custom_components.spatial_esphome.spatial as spatial
+
+    assert not hasattr(spatial, "_entities_of"), (
+        "data() builds its index inline -- a second gatherer would drift"
+    )
