@@ -67,7 +67,7 @@ ESPHome-Integration, keine eigene Verbindung zu den Boards, kein API-Key.
 | Bereich | der Bereich, dem das Gerät in HA schon zugeordnet ist |
 | Name | der eigene Gerätename, sonst der von ESPHome gemeldete |
 | Zustand | siehe unten |
-| Metadaten | `modell`, `firmware`, `entitaeten` (wie viel an dieser Box hängt) |
+| Metadaten | `modell`, `firmware`, `schlafmodus`, `entitaeten` (wie viel an dieser Box hängt), nur wenn das Board sich selbst aufspaltet: `untergeraete` |
 | Verlinkung | eine Entität des Boards, damit der Popup eine Tür nach HA hat |
 
 Aktualisiert wird alle **30 Sekunden**. Es gibt kein Signal, auf das sich

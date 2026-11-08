@@ -80,3 +80,48 @@ def test_manifest_verweise_wohnen_beim_kanonischen_repo():
         assert host == kanonisch, (
             f"{schluessel} zeigt auf {host}, kanonisch ist {kanonisch}"
         )
+
+
+def test_die_anleitung_erklaert_jeden_metadata_eintrag():
+    """Was der Knoten ins Popup legt, muss die Tabelle der Anleitung nennen.
+
+    Die Metadaten-Zeile nannte nur ``modell``, ``firmware`` und
+    ``entitaeten`` -- der Knoten trägt aber auch ``schlafmodus`` und,
+    wenn das Board sich selbst aufspaltet, ``untergeraete``. Gerade
+    ``schlafmodus`` erklärt dem Nutzer, warum ein Board still ist.
+    """
+    from conftest import (
+        _DEVICES,
+        _ENTITIES,
+        FakeDevice,
+        FakeEntry,
+        FakeEntity,
+        FakeEsphomeEntry,
+        FakeHass,
+    )
+
+    from custom_components.spatial_esphome.spatial import async_setup_spatial
+
+    hass = FakeHass()
+    board = FakeDevice("b1", area_id=None, name="Bürosensor")
+    kind = FakeDevice("b1-relais", name="Bürosensor Relais")
+    kind.via_device_id = "b1"
+    _DEVICES.devices = {"b1": board, "b1-relais": kind}
+    _ENTITIES.entities = {"sensor.a": FakeEntity("sensor.a", device_id="b1")}
+    hass.states.set("sensor.a", "21.5")
+    hass.config_entries.entries = {
+        "esphome-entry": FakeEsphomeEntry(has_deep_sleep=True)
+    }
+    async_setup_spatial(hass, FakeEntry())
+
+    knoten = hass.registrations["spatial_esphome"]["data"]()["nodes"][0]
+    metadata = knoten["metadata"]
+    assert {"modell", "firmware", "schlafmodus", "entitaeten", "untergeraete"} <= set(metadata), (
+        "der Aufbau muss gerade die Sonderfälle zeigen, die die Doku erklären soll"
+    )
+
+    zeile = re.search(r"^\|\s*Metadaten\s*\|(.+)\|\s*$", _lies("README.md"), re.M)
+    assert zeile, "die README-Tabelle hat keine Metadaten-Zeile mehr"
+    erwaehnt = set(re.findall(r"`(\w+)`", zeile.group(1)))
+    fehlen = set(metadata) - erwaehnt
+    assert not fehlen, f"die Metadaten-Zeile erklärt nicht: {sorted(fehlen)}"
