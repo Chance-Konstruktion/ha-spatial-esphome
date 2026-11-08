@@ -9,6 +9,7 @@ und Verweise, die einander widersprechen.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 WURZEL = Path(__file__).resolve().parents[1]
@@ -38,4 +39,21 @@ def test_hacs_verspricht_kein_release_archiv():
     )
     assert "filename" not in hacs, (
         "ohne zip_release hat filename keinen Gegenstand"
+    )
+
+
+def test_die_anleitung_zitiert_den_namen_aus_dem_manifest():
+    """Der Einrichtungsdialog zeigt den Namen aus manifest.json.
+
+    Die Anleitung zitierte eine Zeichenkette, die es dort nicht gibt --
+    wer ihr folgt, findet die Integration im Dialog nicht wieder.
+    """
+    name = _json("custom_components/spatial_esphome/manifest.json")["name"]
+
+    zitat = re.search(
+        r"Integration hinzufügen →\s*„([^“\"]+)[“\"]", _lies("README.md")
+    )
+    assert zitat, "die Anleitung nennt den Weg zur Einrichtung nicht mehr"
+    assert zitat.group(1) == name, (
+        f"die Anleitung schreibt {zitat.group(1)!r}, der Dialog zeigt {name!r}"
     )

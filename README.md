@@ -44,8 +44,8 @@ kopieren, Home Assistant neu starten.
 
 ### Danach
 
-**Einstellungen → Geräte & Dienste → Integration hinzufügen → „Spatial
-Hub: ESPHome"**.
+**Einstellungen → Geräte & Dienste → Integration hinzufügen →
+„spatial-hub: esphome"**.
 
 [![Öffne deine Home-Assistant-Instanz und starte die Einrichtung der Integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=spatial_esphome)
 
