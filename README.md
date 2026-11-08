@@ -25,6 +25,9 @@ Moment, in dem er ein Katalog ist statt einer Plattform.
 
 ### Über HACS
 
+Dieses Repo hier ist das kanonische; HACS kennt nur GitHub, deshalb
+dient der GitHub-Spiegel unten rein als Installationsquelle.
+
 Dieser Knopf öffnet das Repository in deiner eigenen HACS-Installation und trägt es dabei automatisch als benutzerdefiniertes Repository ein:
 
 [![Öffne deine Home-Assistant-Instanz und dieses Repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Chance-Konstruktion&repository=ha-spatial-esphome&category=integration)
